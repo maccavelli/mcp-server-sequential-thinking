@@ -1,6 +1,8 @@
 module github.com/maccavelli/mcp-server-sequential-thinking
 
-go 1.26.6
+go 1.26.11
+
+toolchain go1.27.4
 
 require (
 	github.com/hashicorp/golang-lru/v2 v2.0.7
