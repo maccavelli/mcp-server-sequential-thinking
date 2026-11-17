@@ -99,3 +99,48 @@ releases wait for the owner's word.
   windows/amd64 and darwin/arm64, exit 0; `markdownlint-cli2` on the README,
   0 issues (the records are excluded by `.markdownlint-cli2.jsonc`).
 * Not done: no commit, push, tag or release; no CI run; no floor job added.
+
+## Amendment A1 (2026-11-17): the `mcplib` requirement, after CI went red
+
+Associated decision: Amendment A1 of
+[0001-MADR-move-toolchain-to-go-1-27-4-and-floor-to-1-26-11.md](0001-MADR-move-toolchain-to-go-1-27-4-and-floor-to-1-26-11.md).
+
+### Deviation (2026-11-17)
+
+After the push, CI failed on both commits at `go mod download`:
+`reading github.com/maccavelli/mcplib/go.mod at revision v1.2.0: unknown
+revision v1.2.0`. Pre-existing: the tag left mcplib's source repository, the
+proxy answers 404 for it, and the last green run (`ef5ba25`) is older than
+that. The owner ruled: "Move the requirement to a mcplib version that
+exists, under an amendment (Recommended)". The step "Out of scope: raising
+`mcplib`" above is overridden for this one requirement and its indirect
+consequence; nothing else changes.
+
+### Steps and results
+
+| Step | File | Change |
+| :--- | :--- | :--- |
+| A1.1 | `go.mod:14` | `github.com/maccavelli/mcplib v1.2.0` becomes `v1.6.0` |
+| A1.2 | `go.mod:19` | `golang.org/x/sys v0.45.0 // indirect` becomes `v0.47.0` |
+| A1.3 | `go.mod` | `golang.org/x/tools v0.45.0 // indirect` removed (no longer needed) |
+| A1.4 | `go.sum` | `mcplib` v1.6.0 and `x/sys` v0.47.0 lines replace the old ones; `x/tools` v0.45.0 lines become v0.42.0 |
+
+* Scratch first (copy of HEAD): `go get ...@v1.6.0` printed "upgraded
+  mcplib v1.2.0 => v1.6.0" and "upgraded x/sys v0.45.0 => v0.47.0"; `go mod
+  tidy` and `go mod tidy -diff` exit 0; only `go.mod` and `go.sum` changed.
+  Build, vet, `go test -count=1 ./...`, `govulncheck` and `make lint`
+  (scratch v2.15.0) exit 0 under 1.27.4 and `GOTOOLCHAIN=go1.26.11`.
+* Red before, green after: with `GOMODCACHE` empty, `GOPROXY=https://proxy.golang.org,direct`,
+  `GOSUMDB=sum.golang.org`, `GOFLAGS=`, `GOTOOLCHAIN=local`: HEAD fails with
+  `go: github.com/maccavelli/mcplib@v1.2.0: reading ...: unknown revision
+  v1.2.0`, exit 1; the bumped tree exits 0. `GOPROXY=direct GOSUMDB=off`
+  fails the same way on HEAD. Not reproduced: the runner's network.
+* Gates again in the tree, all exit 0: `gofmt -l` empty; `go mod tidy -diff`;
+  `go vet` (1.27.4); `make lint` with v2.15.0 under 1.27.4 and 1.26.11 (0
+  issues each); floor build and vet (1.26.11); `go test -race -cover
+  -count=1 -timeout 20m ./...` (1.27.4); floor `go test -count=1 -timeout
+  20m ./...` (1.26.11); `govulncheck ./...` under both toolchains ("No
+  vulnerabilities found."); `CGO_ENABLED=0` builds for linux/amd64,
+  windows/amd64 and darwin/arm64; README markdownlint; `go mod verify`; the
+  version-agreement check passes, and its three planted failures still fail.
+* Not done: no commit, push or tag. The first CI run on the push is the proof.

@@ -150,3 +150,55 @@ data is the one that goes with it.
   * What GO-2026-6859 is beyond its title and fixed versions.
   * Behaviour of the code under 1.27.4's other changes beyond the test
     suite and `govulncheck`.
+
+## Amendment A1 (2026-11-17): the `mcplib` requirement moves to `v1.6.0`
+
+Added after the first push. Nothing above is rewritten; where it differs,
+this amendment governs.
+
+* **What was found.** CI failed on both pushed commits (the records-only one
+  and the change), so the cause predates this decision. The `validate` job's
+  `go mod download` step printed `go: github.com/maccavelli/mcplib@v1.2.0:
+  reading github.com/maccavelli/mcplib/go.mod at revision v1.2.0: unknown
+  revision v1.2.0` and exited 1. The last green run was on `ef5ba25` in
+  September; this was the first run since the `v1.2.0` tag left mcplib's
+  source repository (its public remote now carries `v1.3.0` to `v1.6.0`).
+* **Why the module proxy did not save it.** The job's printed `go env` shows
+  `GOPROXY='https://proxy.golang.org,direct'`, `GOPRIVATE=''`,
+  `GONOPROXY=''`, `GONOSUMDB=''`, `GOFLAGS=''`, `GOSUMDB='sum.golang.org'`,
+  and the workflow sets no `env:` block and no git credential rewriting
+  (the credentials config in the log is `actions/checkout`'s own, removed in
+  its post step). So no setting forces a direct fetch. The proxy's version
+  list still names `v1.2.0`, but its `.info`, `.mod` and `.zip` for `v1.2.0`
+  answer 404 (`not found: ... invalid version: unknown revision v1.2.0`),
+  and Go then falls through to `direct`, where the tag is gone. The earlier
+  local gates passed only because this Mac's module cache held `v1.2.0`.
+  This corrects the premise that CI fetched directly by configuration.
+* **The ruling.** The owner ruled, label exact: "Move the requirement to a
+  mcplib version that exists, under an amendment (Recommended)".
+* **The change.** `go.mod:14` `github.com/maccavelli/mcplib v1.2.0` becomes
+  `v1.6.0` (the newest tag; it declares `go 1.26.6`, below this floor), and
+  `go.mod:19` `golang.org/x/sys v0.45.0 // indirect` becomes `v0.47.0`
+  (`mcplib v1.6.0` requires it). `golang.org/x/tools` leaves `go.mod` (it was
+  an indirect line pulled by `mcplib v1.2.0` at v0.45.0; the graph now needs
+  only v0.42.0, via go-sdk, which `go.sum` records). `go.sum` changes
+  accordingly; no other requirement moves and no Go source changes.
+* **What this server uses of `mcplib`.** Only the root package:
+  `HardenedAddSimpleTool`, `HardenedAddTool`, `HardenedResourceHandler`,
+  `IsExpectedShutdownErr`, `LogBuffer`, `NewLogBuffer`, `NewMCPServer`,
+  `NewStdioPipeline`, `RegisterDiagnosticTool`, `SetupStandardLogging`,
+  `StringValue`, `UniversalBaseInput`. Comparing every non-test `.go` file
+  of the root package between `v1.2.0` (module cache) and `v1.6.0` (the tag's
+  tree) shows none added, removed or changed. What changed in `v1.6.0` is
+  outside the packages imported here (`llmprovider`, `wizard`, the new
+  `selfupdate`, `go.mod`).
+* **Checked.** In a scratch copy of HEAD, `go get` then `go mod tidy`
+  changed only `go.mod` and `go.sum`; build, vet, tests, `govulncheck` and
+  `golangci-lint` v2.15.0 passed under Go 1.27.4 and `GOTOOLCHAIN=go1.26.11`.
+  With an empty module cache and CI's printed proxy settings, `go mod
+  download` fails on HEAD with the CI message and succeeds on the bumped
+  tree. The full gates then ran again in the tree (PLAN, Amendment A1).
+* **Proof still owed.** The first CI run on the push that carries this change
+  is the proof; it has not run.
+* **Not verified.** That CI's runner fetches `v1.6.0` from the proxy: it
+  answers 200 for `v1.6.0` today, from here.
